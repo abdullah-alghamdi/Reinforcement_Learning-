@@ -10,6 +10,7 @@ Some of the changes:
 - The learning rate for the actor, 0.001 instead of 0.0001
 - The batch size is 32 instead of 64
 - The tau for the soft update is 0.01 instead of 0.001
+- layers size of 30 and 40 instead of 300 and 400
 
 .
 '''
@@ -65,15 +66,15 @@ class DDPG(object):
                         # because they slow the learning, it needs more episodes for them to learn (uncomment if you want)
                         # P.S. They are included on the DDPG original paper.
 
-                        layer1 = tf.contrib.layers.fully_connected(s, 40, activation_fn=None, trainable=trainable )
-                        #b_norm = tf.contrib.layers.batch_norm(net,center=True, scale=True)
-                        layer1 = tf.nn.relu(layer1, 'relu')
+                        layer1 = tf.contrib.layers.fully_connected(s, 40, activation_fn=None, trainable=trainable)
+                        #b_norm = tf.contrib.layers.batch_norm(layer1,trainable=trainable)
+                        layer1 = tf.nn.relu(layer1 , 'relu')
                         # add weights_initializer=tf.random_uniform_initializer(-fanin1, fanin1) to the previous line to add 
                         # the fan-in uniform distribution to the initialization of the layer.
                         layer2 = tf.contrib.layers.fully_connected(layer1, 30, activation_fn=None, trainable=trainable)
                         # add weights_initializer=tf.random_uniform_initializer(-fanin2, fanin2) to the previous line to add 
                         # the fan-in uniform distribution to the initialization of the layer
-                        #b_norm = tf.contrib.layers.batch_norm(net,center=True, scale=True)
+                        #b_norm = tf.contrib.layers.batch_norm(layer2,trainable=trainable)
                         layer2 = tf.nn.relu(layer2, 'relu')
 
                         # Add this to layer3, weights_initializer=tf.random_uniform_initializer(-3e-3, 3e-3) 
