@@ -1,5 +1,5 @@
 # Author: Abdullah Alghamdi
-''' This is an implementation for the Deep Deterministic Policy Griedent (DDPG)
+''' This is a reimplementation of the Deep Deterministic Policy Griedent (DDPG) algorithm
 based on the 'Continuous control with Deep Reinforcement Learning' (paper https://arxiv.org/pdf/1509.02971.pdf) 
 The experiment is based on the paper where they used the OpenAI gym environment "Pendulum-v0", the deep networks structure 
 and hyperparameters are slightly changed.
