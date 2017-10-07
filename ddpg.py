@@ -3,15 +3,6 @@
 based on the 'Continuous control with Deep Reinforcement Learning' (paper https://arxiv.org/pdf/1509.02971.pdf) 
 The experiment is based on the paper where they used the OpenAI gym environment "Pendulum-v0", the deep networks structure 
 and hyperparameters are slightly changed.
-
-Some of the changes:
-- The weights initializers, weights regulization, and the bach normalization are commented out in both actor and critic networks
-- The first layer (400) of the critic network is not included. 
-- The learning rate for the actor, 0.001 instead of 0.0001
-- The batch size is 32 instead of 64
-- The tau for the soft update is 0.01 instead of 0.001
-- layers size of 30 and 40 instead of 300 and 400
-
 .
 '''
 from OUAction_noise import OrnsteinUhlenbeckActionNoise
@@ -31,17 +22,17 @@ tf.set_random_seed(1)
 #####################
 #--> RL  hyperparameters  
 GAMMA = 0.9     # discout factor
-actor_alpha = 0.001    # learning rate for actor
+actor_alpha = 0.0001    # learning rate for actor
 critic_alpha = 0.001    # learning rate for critic
 
 #--> Experience Replay parameters
-BUFFER_SIZE = 10000
-BATCH_SIZE = 32
+BUFFER_SIZE = 100000
+BATCH_SIZE = 64
 
 #-->soft update rate for the target network ( see the paper )
-soft_update_tau = 0.01
+soft_update_tau = 0.001
 EPISODES = 200
-STEPS = 200
+STEPS =200
 ENV_NAME = 'Pendulum-v0'
 
 class DDPG(object):
@@ -59,47 +50,38 @@ class DDPG(object):
 
         def actor_network(self, s, scope, trainable):
                 with tf.variable_scope(scope):
-                        #fanin1 = 1/np.sqrt(self.state_dim)
-                        #fanin2 = 1/np.sqrt(400)
+                        fanin1 = 1/np.sqrt(self.state_dim)
+                        fanin2 = 1/np.sqrt(400)
 
-                        #NOTE: the Fan-in and [-3e-3, 3e-3] weights initializers and the batch normalization additions are commented out
-                        # because they slow the learning, it needs more episodes for them to learn (uncomment if you want)
-                        # P.S. They are included on the DDPG original paper.
-
-                        layer1 = tf.contrib.layers.fully_connected(s, 40, activation_fn=None, trainable=trainable)
-                        #b_norm = tf.contrib.layers.batch_norm(layer1,trainable=trainable)
-                        layer1 = tf.nn.relu(layer1 , 'relu')
-                        # add weights_initializer=tf.random_uniform_initializer(-fanin1, fanin1) to the previous line to add 
-                        # the fan-in uniform distribution to the initialization of the layer.
-                        layer2 = tf.contrib.layers.fully_connected(layer1, 30, activation_fn=None, trainable=trainable)
-                        # add weights_initializer=tf.random_uniform_initializer(-fanin2, fanin2) to the previous line to add 
-                        # the fan-in uniform distribution to the initialization of the layer
-                        #b_norm = tf.contrib.layers.batch_norm(layer2,trainable=trainable)
-                        layer2 = tf.nn.relu(layer2, 'relu')
-
-                        # Add this to layer3, weights_initializer=tf.random_uniform_initializer(-3e-3, 3e-3) 
-                        layer3 = tf.contrib.layers.fully_connected(layer2, self.action_dim, activation_fn=tf.tanh, \
-                                 trainable=trainable)
+                        layer1 = tf.layers.dense(s, 400,activation=None, kernel_initializer=tf.random_uniform_initializer(-fanin1, fanin1), trainable=trainable)
+                        b_norm = tf.layers.batch_normalization(layer1,trainable=trainable)
+                        layer1 = tf.nn.relu(b_norm, 'relu')
+                        layer2 = tf.layers.dense(layer1, 300,activation=None, kernel_initializer=tf.random_uniform_initializer(-fanin2, fanin2), trainable=trainable)
+                        b_norm = tf.layers.batch_normalization(layer2,trainable=trainable)
+                        layer2 = tf.nn.relu(b_norm, 'relu')
+                        layer3 = tf.layers.dense(layer2, self.action_dim,activation=tf.tanh, kernel_initializer=tf.random_uniform_initializer(-3e-3, 3e-3) , trainable=trainable)
                         scaled_action = tf.multiply(layer3, self.action_bound)
                         return scaled_action
 
 
         def critic_network(self,s,a, scope,trainable):
-                '''Note: This network structure is different from the paper, I deleted the first layer (size 400), 
-                it seems that it slows the learning and it needs more episodes for the network to learn'''
+              
                 with tf.variable_scope(scope):
+                        fanin1 = 1/np.sqrt(self.state_dim)
+                        fanin2 = 1/np.sqrt(400)
 
-                        layer1_size = 30
-                        w1_s = tf.get_variable('w1_s',[self.state_dim, layer1_size], trainable=trainable)
-                        w1_a = tf.get_variable('w1_a',[self.action_dim, layer1_size], trainable=trainable)
-                        b1 = tf.get_variable('b1',[1, layer1_size], trainable=trainable)
-                        layer1 = tf.nn.relu(tf.matmul(s, w1_s) + tf.matmul(a, w1_a) + b1)
-                        # add the the weight_init and weight_reg to the out_Q layer( they slow learning)
-                        # weights_initializer=tf.random_uniform_initializer(-3e-3, 3e-3),weights_regularizer = tf.contrib.layers.l2_regularizer(1e-2),
-                        out_Q = tf.contrib.layers.fully_connected(layer1, 1, activation_fn=None, trainable=trainable)
-                        return out_Q 
+                        layer1 = tf.layers.dense(s, 400,activation=None, kernel_initializer=tf.random_uniform_initializer(-fanin1, fanin1), trainable=trainable)
+                        b_norm = tf.layers.batch_normalization(layer1,trainable=trainable)
+                        layer1 = tf.nn.relu(b_norm, 'relu')
+                        w1_s = tf.Variable(tf.random_uniform([400, 300], -fanin2, fanin2), trainable=trainable)
+                        w1_a = tf.Variable(tf.random_uniform([self.action_dim, 300], -fanin2, fanin2), trainable=trainable)
+                        b1 = tf.Variable(tf.random_uniform([1,300], -fanin2, fanin2),trainable=trainable)
 
-                
+                        b_norm = tf.layers.batch_normalization(tf.matmul(layer1, w1_s) + tf.matmul(a, w1_a) + b1,trainable=trainable)
+                        layer2 = tf.nn.relu(b_norm)
+                        out_Q = tf.layers.dense(layer2, 1,activation=None, kernel_initializer=tf.random_uniform_initializer(-3e-3, 3e-3) , trainable=trainable)
+                        return out_Q
+                        
 
 
         def build_graph(self):
@@ -140,6 +122,8 @@ class DDPG(object):
         # init graph
         def initialize_graph(self):
                 self.sess.run(tf.global_variables_initializer())
+                self.sess.run(self.actor_target_update)
+                self.sess.run(self.critic_target_update)
         #sample action give the state
         def get_action(self, s):
                 return self.sess.run(self.action, {self.state: s[None, :]})[0]
@@ -168,7 +152,7 @@ class DDPG(object):
                 next_s_batch = np.array(list(map(lambda x: x[3], batch)))
                 return s_batch, a_batch, np.transpose(r_batch[None,:]), next_s_batch
 
-        # init learning 
+        #learning
         def learn(self,bs,ba,br,bs_):
                 self.sess.run(self.actor_target_update)
                 self.sess.run(self.critic_target_update)
@@ -206,8 +190,8 @@ if __name__ == '__main__':
 
         # add noise to the action ( look at the paper p.4 equation 7, the Ornstein Uhlenbeck algorithm is taken from openAI repo )
         # or just add use random to add the noise, and then clip the results between min and max actions [-2,2]
-        #actor_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(a_dim))
-        noise = 2
+        actor_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(a_dim))
+        noise = 1
         render_value = False
         return_per_episode = []
         for episode in range(EPISODES):
@@ -220,9 +204,9 @@ if __name__ == '__main__':
                                 env.render()
 
                         a = ddpg.get_action(s) 
-                        a = np.clip(np.random.normal(a, noise), -2, 2) 
-                        #if noise>0:
-                        #   a += (noise * actor_noise())
+                        #a = np.clip(np.random.normal(a, noise), -2, 2) 
+                        
+                        a += (noise * actor_noise())
 
                         # get the next state and reward, then add the experience to the buffer
                         s_, r, _, _ = env.step(a)
@@ -230,7 +214,8 @@ if __name__ == '__main__':
 
 
                         if ddpg.counter > BATCH_SIZE:
-                                noise *= 0.9999 # reduce the noise 
+                                #if noise>0:
+                                 #   noise *= 0.9999 # reduce the noise 
 
                                 # sample batch from the buffer, and learn
                                 s_batch,a_batch,r_batch,next_s_batch = ddpg.sample_batch()
