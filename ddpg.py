@@ -24,13 +24,13 @@ tf.set_random_seed(1)
 GAMMA = 0.9     # discout factor
 actor_alpha = 0.0001    # learning rate for actor
 critic_alpha = 0.001    # learning rate for critic
-
+soft_update_tau = 0.001 # soft update rate
 #--> Experience Replay parameters
 BUFFER_SIZE = 100000
 BATCH_SIZE = 64
 
 #-->soft update rate for the target network ( see the paper )
-soft_update_tau = 0.001
+
 EPISODES = 200
 STEPS =200
 ENV_NAME = 'Pendulum-v0'
@@ -93,19 +93,25 @@ class DDPG(object):
                     q_theta = self.critic_network(self.state, self.action, scope='eval', trainable=True)
                     q_theta_prime = self.critic_network(self.nextState, a_theta_prime, scope='target', trainable=False)
 
-                def soft_update(target,eval):
-                        return [tf.assign(t, (1 - soft_update_tau) * t + soft_update_tau * e) for t, e in zip(target, eval)]
+                def soft_update(target,eval,is_init):
+                        if is_init:
+                            return [tf.assign(t, (1 - 0) * t + 0 * e) for t, e in zip(target, eval)]
+                        else:
+                            return [tf.assign(t, (1 - soft_update_tau) * t + soft_update_tau * e) for t, e in zip(target, eval)]
 
                 # Find parameters by scope, to change it from eval to target network
                 self.actor_eval = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='Actor/eval')
                 self.actor_target = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='Actor/target')
                 # soft update the target network of the actor
-                self.actor_target_update = soft_update(self.actor_target,self.actor_eval)
+                self.actor_target_update = soft_update(self.actor_target,self.actor_eval,False)
+                self.init_actor_target = soft_update(self.actor_target,self.actor_eval,True)
 
                 # do the same previous two steps for the critic
                 self.critic_eval = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='Critic/eval')
                 self.critic_target = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='Critic/target')
-                self.critic_target_update = soft_update(self.critic_target,self.critic_eval)
+
+                self.critic_target_update = soft_update(self.critic_target,self.critic_eval,False)
+                self.init_critic_target = soft_update(self.critic_target,self.critic_eval,True)
 
                 # optimize critic and actor
 
@@ -122,8 +128,8 @@ class DDPG(object):
         # init graph
         def initialize_graph(self):
                 self.sess.run(tf.global_variables_initializer())
-                self.sess.run(self.actor_target_update)
-                self.sess.run(self.critic_target_update)
+                self.sess.run(self.init_actor_target)
+                self.sess.run(self.init_critic_target)
         #sample action give the state
         def get_action(self, s):
                 return self.sess.run(self.action, {self.state: s[None, :]})[0]
@@ -187,7 +193,6 @@ if __name__ == '__main__':
         ddpg.build_graph()
         # start the variables of the graph
         ddpg.initialize_graph()
-
         # add noise to the action ( look at the paper p.4 equation 7, the Ornstein Uhlenbeck algorithm is taken from openAI repo )
         # or just add use random to add the noise, and then clip the results between min and max actions [-2,2]
         actor_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(a_dim))
